@@ -136,9 +136,9 @@
 
 <div class="controls">
   <div class="upload-area">
-    <p>上傳圖檔（自動辨識文字並填入規格欄）</p>
-    <input type="file" id="fileInput" accept="image/*" multiple>
-    <button onclick="parseImage()" style="margin-top:8px;">解析圖檔並填入規格</button>
+    <p>上傳 PDF / Excel / Word 檔（自動擷取文字並填入規格欄）</p>
+    <input type="file" id="fileInput" accept=".pdf,.xlsx,.xls,.csv,.docx,.doc" multiple>
+    <button onclick="parseFile()" style="margin-top:8px;">解析檔案並填入規格</button>
   </div>
   <button class="add" onclick="addRow()">＋ 增添新項目</button>
   <button class="secondary" onclick="window.print()">輸出 / 列印估價單</button>
@@ -228,7 +228,8 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script>
 let rowCount = 0;
 
@@ -282,23 +283,34 @@ function toChineseNumber(num) {
   return str.replace(/零+$/, '').replace(/零+/g, '零') || '零';
 }
 
-async function parseImage() {
+async function parseFile() {
   const files = document.getElementById('fileInput').files;
-  if (!files.length) { alert('請先選擇圖檔'); return; }
+  if (!files.length) { alert('請先選擇檔案'); return; }
   const file = files[0];
-  alert('正在辨識圖片文字，請稍候...');
+  const name = file.name.toLowerCase();
+  alert('正在解析檔案，請稍候...');
+
   try {
-    const { data: { text } } = await Tesseract.recognize(file, 'chi_tra+eng');
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+    let lines = [];
+    if (name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv')) {
+      lines = await parseExcel(file);
+    } else if (name.endsWith('.pdf')) {
+      lines = await parsePDF(file);
+    } else if (name.endsWith('.docx') || name.endsWith('.doc')) {
+      lines = await parseWord(file);
+    } else {
+      alert('目前支援 PDF、Excel、Word (.docx)');
+      return;
+    }
+
     let filled = 0;
     const specInputs = document.querySelectorAll('[data-field="spec"]');
     lines.forEach((line, idx) => {
-      if (idx < specInputs.length && !specInputs[idx].value) {
+      if (idx < specInputs.length && !specInputs[idx].value && line.length > 1) {
         specInputs[idx].value = line.substring(0, 60);
         filled++;
       }
     });
-    // 若現有列不夠，自動新增
     while (filled < lines.length && rowCount < 30) {
       addRow();
       const newSpecs = document.querySelectorAll('[data-field="spec"]');
@@ -310,8 +322,37 @@ async function parseImage() {
     calc();
     alert(`已填入約 ${filled} 筆規格內容，請檢查並補上數量與單價。`);
   } catch (e) {
-    alert('辨識失敗：' + e.message);
+    console.error(e);
+    alert('解析失敗：' + e.message);
   }
+}
+
+async function parseExcel(file) {
+  const data = await file.arrayBuffer();
+  const workbook = XLSX.read(data);
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  return rows.map(row => (row || []).map(c => String(c).trim()).filter(c => c).join(' ')).filter(l => l.length > 1);
+}
+
+async function parsePDF(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    fullText += content.items.map(item => item.str).join(' ') + '\n';
+  }
+  return fullText.split('\n').map(l => l.trim()).filter(l => l.length > 3);
+}
+
+async function parseWord(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer });
+  return result.value.split('\n').map(l => l.trim()).filter(l => l.length > 1);
 }
 
 function downloadPDF() {
