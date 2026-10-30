@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>東興傢俱裝潢社 估價單</title>
+<style>
+  @page { size: A4; margin: 10mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+    background: #f0f0f0;
+    padding: 20px;
+    font-size: 12px;
+  }
+  .sheet {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    background: white;
+    padding: 8mm 10mm;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+  }
+  .header-title {
+    text-align: center;
+    font-size: 22px;
+    font-weight: bold;
+    letter-spacing: 4px;
+    margin-bottom: 2px;
+  }
+  .header-subtitle {
+    text-align: center;
+    font-size: 20px;
+    font-weight: bold;
+    letter-spacing: 8px;
+    margin-bottom: 6px;
+    border-bottom: 2px solid #000;
+    padding-bottom: 2px;
+  }
+  .info-row {
+    display: flex;
+    border: 1.5px solid #000;
+    border-bottom: none;
+  }
+  .info-left {
+    width: 55%;
+    border-right: 1.5px solid #000;
+    padding: 4px 6px;
+    min-height: 70px;
+  }
+  .info-right {
+    width: 45%;
+    font-size: 11px;
+    line-height: 1.45;
+    padding: 3px 6px;
+  }
+  .info-right div { border-bottom: 1px solid #000; padding: 1px 0; }
+  .info-right div:last-child { border-bottom: none; }
+  .date-row {
+    display: flex;
+    border: 1.5px solid #000;
+    border-top: none;
+    border-bottom: none;
+    padding: 3px 6px;
+    font-size: 12px;
+  }
+  .date-row input {
+    border: none;
+    border-bottom: 1px solid #000;
+    width: 40px;
+    text-align: center;
+    font-size: 12px;
+    background: transparent;
+  }
+  table.quotation {
+    width: 100%;
+    border-collapse: collapse;
+    border: 2px solid #000;
+    table-layout: fixed;
+  }
+  table.quotation th,
+  table.quotation td {
+    border: 1px solid #000;
+    padding: 2px 3px;
+    text-align: center;
+    height: 22px;
+    font-size: 12px;
+    vertical-align: middle;
+  }
+  table.quotation th {
+    background: #f8f8f8;
+    font-weight: bold;
+  }
+  .col-item { width: 5%; }
+  .col-spec { width: 32%; text-align: left !important; padding-left: 6px !important; }
+  .col-qty { width: 8%; }
+  .col-unit { width: 7%; }
+  .col-price { width: 12%; }
+  .col-amount { width: 14%; }
+  .col-note { width: 22%; text-align: left !important; }
+  .subtotal-row td { font-weight: bold; }
+  .total-words {
+    border: 2px solid #000;
+    border-top: none;
+    padding: 4px 8px;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .footer-notes {
+    border: 2px solid #000;
+    border-top: none;
+    padding: 6px 8px;
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .footer-notes .left { flex: 1; }
+  .footer-notes .right { width: 180px; text-align: right; }
+  input.editable, textarea.editable {
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-size: inherit;
+    font-family: inherit;
+    text-align: inherit;
+    padding: 0 2px;
+  }
+  input.editable:focus, textarea.editable:focus {
+    outline: 1px solid #4a90e2;
+    background: #fffef0;
+  }
+  .controls {
+    max-width: 210mm;
+    margin: 15px auto;
+    text-align: center;
+  }
+  button {
+    padding: 8px 20px;
+    margin: 0 6px;
+    font-size: 14px;
+    cursor: pointer;
+    background: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 4px;
+  }
+  button.secondary { background: #34a853; }
+  .upload-area {
+    border: 2px dashed #aaa;
+    padding: 15px;
+    margin: 10px auto;
+    max-width: 210mm;
+    text-align: center;
+    background: #fafafa;
+  }
+  @media print {
+    body { background: white; padding: 0; }
+    .controls, .upload-area { display: none !important; }
+    .sheet { box-shadow: none; padding: 0; margin: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <div class="upload-area">
+    <p>拖曳相片 / Excel / PDF 至此，或點選上傳（自動解析填入項目）</p>
+    <input type="file" id="fileInput" accept="image/*,.xlsx,.xls,.csv,.pdf,.txt" multiple>
+  </div>
+  <button onclick="parseAndFill()">解析並填入表格</button>
+  <button class="secondary" onclick="window.print()">輸出 / 列印估價單</button>
+  <button onclick="downloadPDF()">下載 PDF</button>
+</div>
+
+<div class="sheet" id="sheet">
+  <div class="header-title">東 興 傢 俱 裝 潢 社</div>
+  <div class="header-subtitle">估　價　單</div>
+
+  <div class="info-row">
+    <div class="info-left">
+      工程名稱：<br>
+      <input class="editable" id="projectName" style="width:90%; margin-top:4px;" placeholder="請輸入工程名稱">
+    </div>
+    <div class="info-right">
+      <div>地址：中壢區中山東路一段232號之2</div>
+      <div>電話：03-4362399</div>
+      <div>傳真：03-4362348</div>
+      <div>統編：45033239</div>
+      <div>行動電話：0976-141-934</div>
+    </div>
+  </div>
+
+  <div class="date-row">
+    中華民國
+    <input class="editable" id="year" placeholder="年">
+    年
+    <input class="editable" id="month" placeholder="月">
+    月
+    <input class="editable" id="day" placeholder="日">
+    日
+  </div>
+
+  <table class="quotation" id="quotationTable">
+    <thead>
+      <tr>
+        <th class="col-item">項目</th>
+        <th class="col-spec">規格</th>
+        <th class="col-qty">數量</th>
+        <th class="col-unit">單位</th>
+        <th class="col-price">單價</th>
+        <th class="col-amount">金額</th>
+        <th class="col-note">備註</th>
+      </tr>
+    </thead>
+    <tbody id="itemsBody">
+      <!-- 1~25 rows generated by JS -->
+    </tbody>
+    <tr class="subtotal-row">
+      <td colspan="5" style="text-align:right; padding-right:10px;">小計</td>
+      <td id="subtotal">0</td>
+      <td></td>
+    </tr>
+    <tr class="subtotal-row">
+      <td colspan="5" style="text-align:right; padding-right:10px;">稅金 (5%)</td>
+      <td id="tax">0</td>
+      <td></td>
+    </tr>
+    <tr class="subtotal-row">
+      <td colspan="5" style="text-align:right; padding-right:10px;">合計</td>
+      <td id="total">0</td>
+      <td></td>
+    </tr>
+  </table>
+
+  <div class="total-words">
+    <span>總額 新台幣 <span id="totalChinese">零</span> 元整</span>
+    <span id="totalNumber">0</span>
+  </div>
+
+  <div class="footer-notes">
+    <div class="left">
+      1. 本估價單有效期間　年　月<br>
+      2. 如蒙惠顧請先支付定金　　　　成
+    </div>
+    <div class="right">
+      經手人：陳智偉
+    </div>
+  </div>
+</div>
+
+<script>
+function initRows() {
+  const tbody = document.getElementById('itemsBody');
+  for (let i = 1; i <= 25; i++) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i}</td>
+      <td><input class="editable" data-field="spec" data-row="${i}"></td>
+      <td><input class="editable" data-field="qty" data-row="${i}" type="number" step="any" oninput="calc()"></td>
+      <td><input class="editable" data-field="unit" data-row="${i}"></td>
+      <td><input class="editable" data-field="price" data-row="${i}" type="number" step="any" oninput="calc()"></td>
+      <td class="amount" data-row="${i}">0</td>
+      <td><input class="editable" data-field="note" data-row="${i}"></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function calc() {
+  let subtotal = 0;
+  document.querySelectorAll('#itemsBody tr').forEach(tr => {
+    const qty = parseFloat(tr.querySelector('[data-field="qty"]')?.value) || 0;
+    const price = parseFloat(tr.querySelector('[data-field="price"]')?.value) || 0;
+    const amount = qty * price;
+    const amountCell = tr.querySelector('.amount');
+    if (amountCell) amountCell.textContent = amount ? amount.toLocaleString() : '0';
+    subtotal += amount;
+  });
+  const tax = Math.round(subtotal * 0.05);
+  const total = subtotal + tax;
+  document.getElementById('subtotal').textContent = subtotal.toLocaleString();
+  document.getElementById('tax').textContent = tax.toLocaleString();
+  document.getElementById('total').textContent = total.toLocaleString();
+  document.getElementById('totalNumber').textContent = total.toLocaleString();
+  document.getElementById('totalChinese').textContent = toChineseNumber(total);
+}
+
+function toChineseNumber(num) {
+  if (num === 0) return '零';
+  const digits = '零壹貳參肆伍陸柒捌玖';
+  const units = ['', '拾', '佰', '仟', '萬', '拾萬', '佰萬', '仟萬', '億'];
+  let str = '';
+  const s = Math.floor(num).toString();
+  for (let i = 0; i < s.length; i++) {
+    const d = parseInt(s[i]);
+    const u = units[s.length - 1 - i];
+    if (d !== 0) str += digits[d] + u;
+    else if (!str.endsWith('零') && i < s.length - 1) str += '零';
+  }
+  return str.replace(/零+$/, '').replace(/零+/g, '零') || '零';
+}
+
+function parseAndFill() {
+  const files = document.getElementById('fileInput').files;
+  if (!files.length) {
+    alert('請先選擇檔案');
+    return;
+  }
+  alert('已接收 ' + files.length + ' 個檔案。\n\n檢查點 2 會實作完整自動解析（OCR + Excel）。\n目前請手動填入測試。');
+}
+
+function downloadPDF() {
+  alert('PDF 下載功能將在下一階段完整實作。\n目前請使用「輸出 / 列印」按鈕。');
+  window.print();
+}
+
+initRows();
+calc();
+
+const today = new Date();
+document.getElementById('year').value = today.getFullYear() - 1911;
+document.getElementById('month').value = today.getMonth() + 1;
+document.getElementById('day').value = today.getDate();
+</script>
+</body>
+</html>
