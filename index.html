@@ -136,9 +136,9 @@
 
 <div class="controls">
   <div class="upload-area">
-    <p>上傳 PDF / Excel / Word 檔（自動擷取文字並填入規格欄）</p>
+    <p>上傳 PDF / Excel / Word 檔（自動依項次掃描並填入規格、數量、單位、單價）</p>
     <input type="file" id="fileInput" accept=".pdf,.xlsx,.xls,.csv,.docx,.doc" multiple>
-    <button onclick="parseFile()" style="margin-top:8px;">解析檔案並填入規格</button>
+    <button onclick="parseFile()" style="margin-top:8px;">解析檔案並填入表格</button>
   </div>
   <button class="add" onclick="addRow()">＋ 增添新項目</button>
   <button class="secondary" onclick="window.print()">輸出 / 列印估價單</button>
@@ -291,36 +291,34 @@ async function parseFile() {
   alert('正在解析檔案，請稍候...');
 
   try {
-    let lines = [];
+    let items = [];
     if (name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv')) {
-      lines = await parseExcel(file);
+      items = await parseExcel(file);
     } else if (name.endsWith('.pdf')) {
-      lines = await parsePDF(file);
+      items = await parsePDF(file);
     } else if (name.endsWith('.docx') || name.endsWith('.doc')) {
-      lines = await parseWord(file);
+      items = await parseWord(file);
     } else {
       alert('目前支援 PDF、Excel、Word (.docx)');
       return;
     }
 
-    let filled = 0;
-    const specInputs = document.querySelectorAll('[data-field="spec"]');
-    lines.forEach((line, idx) => {
-      if (idx < specInputs.length && !specInputs[idx].value && line.length > 1) {
-        specInputs[idx].value = line.substring(0, 60);
-        filled++;
-      }
-    });
-    while (filled < lines.length && rowCount < 30) {
+    // 清空現有列後重新填入
+    document.getElementById('itemsBody').innerHTML = '';
+    rowCount = 0;
+
+    items.forEach(item => {
+      if (rowCount >= 30) return;
       addRow();
-      const newSpecs = document.querySelectorAll('[data-field="spec"]');
-      if (newSpecs[rowCount - 1]) {
-        newSpecs[rowCount - 1].value = lines[filled].substring(0, 60);
-        filled++;
-      }
-    }
+      const row = document.querySelectorAll('#itemsBody tr')[rowCount - 1];
+      if (item.spec) row.querySelector('[data-field="spec"]').value = item.spec.substring(0, 70);
+      if (item.qty) row.querySelector('[data-field="qty"]').value = item.qty;
+      if (item.unit) row.querySelector('[data-field="unit"]').value = item.unit;
+      if (item.price) row.querySelector('[data-field="price"]').value = item.price;
+      if (item.note) row.querySelector('[data-field="note"]').value = item.note;
+    });
     calc();
-    alert(`已填入約 ${filled} 筆規格內容，請檢查並補上數量與單價。`);
+    alert(`已依項次填入 ${items.length} 筆項目，請檢查並微調。`);
   } catch (e) {
     console.error(e);
     alert('解析失敗：' + e.message);
@@ -332,7 +330,21 @@ async function parseExcel(file) {
   const workbook = XLSX.read(data);
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-  return rows.map(row => (row || []).map(c => String(c).trim()).filter(c => c).join(' ')).filter(l => l.length > 1);
+  const items = [];
+  rows.forEach(row => {
+    const cells = (row || []).map(c => String(c).trim());
+    if (cells.length < 2) return;
+    const first = cells[0];
+    if (/^\d+$/.test(first) || /^\d+\./.test(first)) {
+      items.push({
+        spec: cells.slice(1, 3).join(' ').substring(0, 70),
+        unit: cells.find(c => /台|式|組|個|米|尺|才|坪|口|所/.test(c)) || '',
+        qty: cells.find(c => /^\d+$/.test(c) && parseInt(c) < 1000) || '',
+        price: cells.find(c => /^\d{3,}/.test(c.replace(/,/g,''))) || ''
+      });
+    }
+  });
+  return items;
 }
 
 async function parsePDF(file) {
@@ -346,13 +358,37 @@ async function parsePDF(file) {
     const content = await page.getTextContent();
     fullText += content.items.map(item => item.str).join(' ') + '\n';
   }
-  return fullText.split('\n').map(l => l.trim()).filter(l => l.length > 3);
+  const lines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 5);
+  const items = [];
+  lines.forEach(line => {
+    const match = line.match(/^(\d+)\s+(.+)/);
+    if (match) {
+      const rest = match[2];
+      const unitMatch = rest.match(/(台|式|組|個|米|尺|才|坪|口|所)\s+(\d+)/);
+      const priceMatch = rest.match(/(\d{3,}(?:,\d{3})*)/g);
+      items.push({
+        spec: rest.replace(/(台|式|組|個|米|尺|才|坪|口|所).*/, '').trim().substring(0, 70),
+        unit: unitMatch ? unitMatch[1] : '',
+        qty: unitMatch ? unitMatch[2] : '',
+        price: priceMatch ? priceMatch[priceMatch.length - 1].replace(/,/g, '') : ''
+      });
+    }
+  });
+  return items;
 }
 
 async function parseWord(file) {
   const arrayBuffer = await file.arrayBuffer();
   const result = await mammoth.extractRawText({ arrayBuffer });
-  return result.value.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+  const lines = result.value.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+  const items = [];
+  lines.forEach(line => {
+    const match = line.match(/^(\d+)\s+(.+)/);
+    if (match) {
+      items.push({ spec: match[2].substring(0, 70) });
+    }
+  });
+  return items;
 }
 
 function downloadPDF() {
