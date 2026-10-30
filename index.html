@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>東興傢俱裝潢社 估價單</title>
+<title>東興傢俱裝璜社 估價單</title>
 <style>
   @page { size: A4; margin: 10mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -111,6 +111,10 @@
   }
   button.secondary { background: #34a853; }
   button.add { background: #f39c12; }
+  .upload-area {
+    border: 2px dashed #aaa; padding: 15px; margin: 10px auto;
+    max-width: 210mm; text-align: center; background: #fafafa;
+  }
   @media (max-width: 768px) {
     body { padding: 8px; font-size: 11px; }
     .sheet { width: 100%; min-height: auto; padding: 6mm 4mm; box-shadow: none; }
@@ -131,13 +135,18 @@
 <body>
 
 <div class="controls">
+  <div class="upload-area">
+    <p>上傳圖檔（自動辨識文字並填入規格欄）</p>
+    <input type="file" id="fileInput" accept="image/*" multiple>
+    <button onclick="parseImage()" style="margin-top:8px;">解析圖檔並填入規格</button>
+  </div>
   <button class="add" onclick="addRow()">＋ 增添新項目</button>
   <button class="secondary" onclick="window.print()">輸出 / 列印估價單</button>
   <button onclick="downloadPDF()">下載 PDF</button>
 </div>
 
 <div class="sheet" id="sheet">
-  <div class="header-title">東 興 傢 俱 裝 潢 社</div>
+  <div class="header-title">東 興 傢 俱 裝 璜 社</div>
   <div class="header-subtitle">估　價　單</div>
 
   <table class="info-table">
@@ -184,7 +193,7 @@
       <td><input class="editable"></td>
       <td><input class="editable"></td>
       <td colspan="2" style="text-align:right; padding-right:8px;">小計</td>
-      <td id="subtotal">0</td>
+      <td id="subtotal" style="text-align:center;">0</td>
       <td></td>
     </tr>
     <tr class="subtotal-row">
@@ -192,7 +201,7 @@
       <td><input class="editable"></td>
       <td><input class="editable"></td>
       <td colspan="2" style="text-align:right; padding-right:8px;">稅金 (5%)</td>
-      <td><input class="editable" id="tax" type="number" step="any" oninput="calc()" value="0" style="text-align:center; font-weight:bold;"></td>
+      <td style="text-align:center;"><input class="editable" id="tax" type="number" step="any" oninput="calc()" value="0" style="text-align:center; font-weight:bold; width:100%;"></td>
       <td></td>
     </tr>
     <tr class="subtotal-row">
@@ -200,7 +209,7 @@
       <td><input class="editable"></td>
       <td><input class="editable"></td>
       <td colspan="2" style="text-align:right; padding-right:8px;">合計</td>
-      <td id="total">0</td>
+      <td id="total" style="text-align:center;">0</td>
       <td></td>
     </tr>
   </table>
@@ -219,6 +228,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
 let rowCount = 0;
 
@@ -232,7 +242,7 @@ function addRow() {
     <td><input class="editable" data-field="qty" type="number" step="any" oninput="calc()"></td>
     <td><input class="editable" data-field="unit"></td>
     <td><input class="editable" data-field="price" type="number" step="any" oninput="calc()"></td>
-    <td class="amount">0</td>
+    <td class="amount" style="text-align:center;">0</td>
     <td><input class="editable" data-field="note"></td>
   `;
   tbody.appendChild(tr);
@@ -272,12 +282,44 @@ function toChineseNumber(num) {
   return str.replace(/零+$/, '').replace(/零+/g, '零') || '零';
 }
 
+async function parseImage() {
+  const files = document.getElementById('fileInput').files;
+  if (!files.length) { alert('請先選擇圖檔'); return; }
+  const file = files[0];
+  alert('正在辨識圖片文字，請稍候...');
+  try {
+    const { data: { text } } = await Tesseract.recognize(file, 'chi_tra+eng');
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+    let filled = 0;
+    const specInputs = document.querySelectorAll('[data-field="spec"]');
+    lines.forEach((line, idx) => {
+      if (idx < specInputs.length && !specInputs[idx].value) {
+        specInputs[idx].value = line.substring(0, 60);
+        filled++;
+      }
+    });
+    // 若現有列不夠，自動新增
+    while (filled < lines.length && rowCount < 30) {
+      addRow();
+      const newSpecs = document.querySelectorAll('[data-field="spec"]');
+      if (newSpecs[rowCount - 1]) {
+        newSpecs[rowCount - 1].value = lines[filled].substring(0, 60);
+        filled++;
+      }
+    }
+    calc();
+    alert(`已填入約 ${filled} 筆規格內容，請檢查並補上數量與單價。`);
+  } catch (e) {
+    alert('辨識失敗：' + e.message);
+  }
+}
+
 function downloadPDF() {
   alert('請使用「輸出 / 列印」按鈕，在列印對話框選擇「另存為 PDF」。');
   window.print();
 }
 
-// 初始產生 10 列空白項目
+// 初始產生 10 列
 for (let i = 0; i < 10; i++) addRow();
 
 const today = new Date();
